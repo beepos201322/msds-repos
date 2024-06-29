@@ -1,0 +1,99 @@
+---
+title: "Murder Rates in NYC by Presidency"
+author: "E. Zhang"
+date: "2024-06-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+
+
+```
+
+## Introduction
+
+This report analyzes the changes in murder rates in New York City surrounding the U.S. presidential elections in 2008 and 2016. The analysis utilizes data provided by the New York City Police Department.
+
+## Data Import
+
+```{r}
+url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+data <- read_csv(url)
+```
+
+## Data Processing
+
+```{r}
+data <- data %>%
+  mutate(OCCUR_DATE = as.Date(OCCUR_DATE, "%m/%d/%Y"),
+         presidency = case_when(
+           year(OCCUR_DATE) < 2008 ~ "Bush",
+           year(OCCUR_DATE) >= 2008 & year(OCCUR_DATE) < 2016 ~ "Obama",
+           year(OCCUR_DATE) >= 2016 ~ "Trump"
+         ),
+         VIC_SEX = coalesce(VIC_SEX, 'Unknown')) %>%
+  filter(STATISTICAL_MURDER_FLAG == TRUE)
+```
+
+## Analysis of Murder Rates by Election Period
+
+```{r}
+summary_table <- data %>%
+  group_by(presidency) %>%
+  summarise(Incidents = n())
+
+summary_table
+```
+
+## Visualizations of Murder Rates by Gender
+
+```{r}
+gender_data <- data %>%
+  group_by(presidency, VIC_SEX) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+ggplot(gender_data, aes(x=presidency, y=Incidents, fill=VIC_SEX)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Murder Rates by Gender and Election Period", y="Number of Incidents") +
+  theme_minimal()
+```
+
+## Visualizations of Murder Rates by Race
+
+```{r}
+data <- data %>% mutate(VIC_RACE = coalesce(VIC_RACE, 'Unknown'))
+
+race_data <- data %>%
+  group_by(presidency, VIC_RACE) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+ggplot(race_data, aes(x=presidency, y=Incidents, fill=VIC_RACE)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  labs(title="Murder Rates by Race and Election Period", y="Number of Incidents") +
+  theme_minimal()
+```
+
+# Regression Model
+```{r}
+selected_data <- data %>%
+  select(STATISTICAL_MURDER_FLAG, presidency, VIC_SEX)
+
+model <- glm(STATISTICAL_MURDER_FLAG ~ presidency + VIC_SEX, 
+             data = selected_data, family = "binomial")
+
+# Model Summary
+summary(model)
+```
+
+## Conclusion and Biases
+
+This report reveals significant fluctuations in murder rates across the presidencies, lowest incidents during the Bush era, increasing dramatically during Obama's presidency, and slightly decreasing under Trump. This could suggest a potential influence of different presidential policies or societal climates during each administration.
+
+Murder rates by race also show disparities. This is critical due to the ongoing discussion of systemic issues and disparities in crime and law enforcement's focus across different communities. Different races may experience different rates of violence due to a variety of factors, including socioeconomic conditions, neighborhood policing practices, and systemic discrimination.
+
+The implications of biases in this context are multiplicative. First, data collection itself may be biased based on which incidents are reported and how they are recorded. Racial bias in reporting and law enforcement can skew data, making certain groups appear more prone to violence than others. Secondly, confirmation bias might lead researchers or policymakers to look for patterns that confirm their preconceived notions about crime and presidency without considering other variables. Overemphasis on law enforcement without addressing these concerns can lead to more violence, thus it's critical to consider these biases when using statistical analysis and reports such as this for lawmaking.
+
+
